@@ -159,7 +159,7 @@ def open_jaw(offers, clock):
 
 def save_report(state,data,cfg):
     clock=now()
-    data['offers']=[o for o in data['offers'] if clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
+    data['offers']=[o for o in data['offers'] if o['query']['origin'] in cfg['origins'] and clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
     combinations=open_jaw(data['offers'],clock)
     candidates=[o for o in data['offers'] if o['kind']=='return']+combinations
     data['open_jaw']=combinations
@@ -214,7 +214,7 @@ def main():
             state.update(free_cycle=cycle,cycle_reserved=0)
         month=clock.strftime('%Y-%m')
         if state.get('utc_month')!=month:state.update(utc_month=month,month_reserved=0)
-        count=min(7,28-state.get('day_reserved',0),900-state.get('cycle_reserved',0),
+        count=min(7,len(queries(cfg)),28-state.get('day_reserved',0),900-state.get('cycle_reserved',0),
                   900-state.get('month_reserved',0),int(quota['free'])-20,950-int(quota['utc_month_spend']))
         if count<=0:raise Stop('Local quota reserve reached')
         allq=queries(cfg);cursor=state['cursor']

@@ -21,8 +21,8 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(radar.Stop):radar.account_guard({},self.clock)
     def test_all_cities_and_directions_rotated(self):
         qs=radar.queries(self.cfg)
-        self.assertEqual(len(qs),18)
-        self.assertEqual({q['origin'] for q in qs},{'SHA','BJS','HGH'})
+        self.assertEqual(len(qs),6)
+        self.assertEqual({q['origin'] for q in qs},{'SHA'})
         self.assertEqual({q['kind'] for q in qs},{'return','outbound','inbound'})
     def test_actual_date_window_parameters(self):
         p=radar.params({'origin':'SHA','city':'ROM','kind':'return'},self.cfg)
