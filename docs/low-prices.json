@@ -1,0 +1,162 @@
+[
+  {
+    "id": "7c477163d234ce176c56deb1",
+    "query": {
+      "origin": "BJS",
+      "city": "ROM",
+      "kind": "return"
+    },
+    "price_cny": 4968,
+    "legs": [
+      {
+        "from": "PKX",
+        "to": "FCO",
+        "departure": "2027-01-31T13:55:00",
+        "arrival": "2027-02-01T11:05:00",
+        "stops": 1,
+        "details": [
+          {
+            "from": {
+              "code": "PKX",
+              "name": "Beijing Daxing International Airport",
+              "type": "airport",
+              "city": "Beijing",
+              "country_code": "CN",
+              "local_time": "2027-01-31T13:55:00",
+              "utc_time": "2027-01-31T05:55:00Z"
+            },
+            "to": {
+              "code": "CMN",
+              "name": "Mohammed V International",
+              "type": "airport",
+              "city": "Casablanca",
+              "country_code": "MA",
+              "local_time": "2027-01-31T19:10:00",
+              "utc_time": "2027-01-31T19:10:00Z"
+            },
+            "carrier": "AT",
+            "carrier_name": "Royal Air Maroc",
+            "flight_number": "AT231",
+            "operating_carrier": "AT",
+            "operating_carrier_name": "Royal Air Maroc",
+            "transport": "flight",
+            "cabin": "economy",
+            "duration_seconds": 47700,
+            "layover_before_seconds": null,
+            "baggage_recheck": null
+          },
+          {
+            "from": {
+              "code": "CMN",
+              "name": "Mohammed V International",
+              "type": "airport",
+              "city": "Casablanca",
+              "country_code": "MA",
+              "local_time": "2027-02-01T06:55:00",
+              "utc_time": "2027-02-01T06:55:00Z"
+            },
+            "to": {
+              "code": "FCO",
+              "name": "Leonardo da Vinci–Fiumicino Airport",
+              "type": "airport",
+              "city": "Rome",
+              "country_code": "IT",
+              "local_time": "2027-02-01T11:05:00",
+              "utc_time": "2027-02-01T10:05:00Z"
+            },
+            "carrier": "AT",
+            "carrier_name": "Royal Air Maroc",
+            "flight_number": "AT942",
+            "operating_carrier": "AT",
+            "operating_carrier_name": "Royal Air Maroc",
+            "transport": "flight",
+            "cabin": "economy",
+            "duration_seconds": 11400,
+            "layover_before_seconds": 42300,
+            "baggage_recheck": false
+          }
+        ]
+      },
+      {
+        "from": "FCO",
+        "to": "PEK",
+        "departure": "2027-02-08T14:55:00",
+        "arrival": "2027-02-10T00:10:00",
+        "stops": 1,
+        "details": [
+          {
+            "from": {
+              "code": "FCO",
+              "name": "Leonardo da Vinci–Fiumicino Airport",
+              "type": "airport",
+              "city": "Rome",
+              "country_code": "IT",
+              "local_time": "2027-02-08T14:55:00",
+              "utc_time": "2027-02-08T13:55:00Z"
+            },
+            "to": {
+              "code": "GYD",
+              "name": "Heydar Aliyev International",
+              "type": "airport",
+              "city": "Baku",
+              "country_code": "AZ",
+              "local_time": "2027-02-08T22:15:00",
+              "utc_time": "2027-02-08T18:15:00Z"
+            },
+            "carrier": "W4",
+            "carrier_name": "Wizz Air Malta",
+            "flight_number": "W46203",
+            "operating_carrier": null,
+            "operating_carrier_name": null,
+            "transport": "flight",
+            "cabin": "economy",
+            "duration_seconds": 15600,
+            "layover_before_seconds": null,
+            "baggage_recheck": null
+          },
+          {
+            "from": {
+              "code": "GYD",
+              "name": "Heydar Aliyev International",
+              "type": "airport",
+              "city": "Baku",
+              "country_code": "AZ",
+              "local_time": "2027-02-09T12:45:00",
+              "utc_time": "2027-02-09T08:45:00Z"
+            },
+            "to": {
+              "code": "PEK",
+              "name": "Beijing Capital International",
+              "type": "airport",
+              "city": "Beijing",
+              "country_code": "CN",
+              "local_time": "2027-02-10T00:10:00",
+              "utc_time": "2027-02-09T16:10:00Z"
+            },
+            "carrier": "J2",
+            "carrier_name": "Azerbaijan Airlines",
+            "flight_number": "J267",
+            "operating_carrier": "J2",
+            "operating_carrier_name": "Azerbaijan Airlines",
+            "transport": "flight",
+            "cabin": "economy",
+            "duration_seconds": 26700,
+            "layover_before_seconds": 52200,
+            "baggage_recheck": true
+          }
+        ]
+      }
+    ],
+    "checked_at": "2026-11-09T12:32:40.754392+00:00",
+    "fetched_at": "2026-11-09T12:32:40.612Z",
+    "cached": false,
+    "booking_urls": [
+      "https://www.kiwi.com/en/booking/?direct=true&locale=en&currency=cny&passengers=1-0-0&token=Hs_wmkZuDyG0AwzpAKs7ogcorBRtZxtGjtS1U1SfISHLpj0rQIGsIpYbbvw1GMx2zE9OnnP-eba7p1wSpGiaXeQxGw0VbSDJmqrDG6Q33FOijZO6Ii4F-cGiyatjHc3aB9DZz2rBauve3vvQ1Z1xmjFQpAgLLGlbYWbgec5wSHKTuPQ18_1Eggn0Yaat8RPzd2hO5npDAEYPxsFpGD3Rx7EYvWUEKA5HlrPjouTykOG_BPDMeKhg2hjZ1VVdvqpeQiYcGe0Q3dya12gMJ8uSzYp5AOHOeQMEA9IdhLekKQJJx7LMEe1M571HADIEM_3v3a-yglaxef_svQlTAoUvt1Ej9P9FVagfVwKvN8D46HpqfolEIDjBfqy67HDbdrKFq6_pgN-Uny2XK1spDthGjpS1SBY1ap33Fo70fgPhWf2IKyURErF1FvrFbq2d2l4rkeK7Vq7GnHKDpaB88flD2LU_cVE4idYGg9USLqymN93ZDJX6hVLB32z6MKaGdU7C-tocyfozm2pBsTAqQZcqvYpbNk5vaEml-pgVUnwu5r3TYlMve6PqaPe1KPxV2xvwVwCKgCX9YnL5Sy2nlUztfOiZSBPpPKf9s3XIvKWOEXniX5uDlBnNNbfkrJ2KbttY0k6VGtb4o6kVzJHMtDhFSWd3wmXz9JhMEMXhEPvOOcoMar8YhndVpU6fpXBExDZfZIZFmt5HnvTAJk0UvcLWD3oNqQB_IsEor1uNpLKXFQwbNJNsaqwvCt0I17gFOi9tt2CH6qsx3E1yOBCXw9N_mT6PMFSJX9583ZwdkwY7wgbFK4TmcGecCFZGKg6TJTfH_JH08GYkhLrMnIZ5x-_Iy2o9EF8oaIChwUbfAvWT9sIHu_m94Gd8qrKXjeNMk9GskkJKsfm_5iBGjq85wX2kayOvyIGAEqLa1SJEtH4dCnfH0SsA-QfxtxvRuOLF-ufrDZsV-PxIe8OTXcTtWWPg5abBHy8Jsr-ak3asy55Mp8RLHDZH-0ggbmCw3eEEpVMf9T5I2ivlwjs6VCtJvptnWyNt2jWbsGgzK4_DTusIJZutsRjIX42iNeu5biEHBYMTOVm8JUeIOqrj2ZHpeysThH1wVmug4dgwQG7ZH15m8Z5jK1sGN5FcxZyFNdBk9HR7vymoC35tMQnmFTjZjw3laWn7MUcftNua5mgPeO5ZqHNw1unHzrFrmcNrchojQdwwpseKLJvDp9vGxBgHDlkPNrDnL0IXGj4oE05vKlauY4wKO-iUxDqsCBdcn2Nf0jZZc7muibT3_5RVREZuKH8A-ecLQXxN54UxQdl4ZyrZ3eH--oe6XKLn0EwXseTn1Nyvorqc30b4ZQyAgduO0-h3QtLL-p9IZ_pGhGaTClrfxI4qvdWxyRPgN2seHnLRs_SOa8C7-olHGD2hNfZsH62dl21XpBNZCyxj-xTM6ERPy6XmLpMmKezDQnwj7BAtBfxaabtKHmZEpSxjHDx2ApAJwkNd3rHyZ00DHINS3vNGCfpU%3D&searchType=return&searchBags=0.0",
+      "https://www.kiwi.com/en/booking/?direct=true&locale=en&currency=cny&passengers=1-0-0&token=Hbsr29qQAMvQjgQ4qTKKHeCAwpirAOjsYu5A2h51LZ7DV1TTAXbWGPWYWYCoAlC5CGau1qwE0NrRbb1a4YmTbh7MTsvMHOErzK0NG8OX-_6vtqm524ayWxaYsnWbgtYDu-K4aY6sZdwcjMHDAUFoL4LZU9P6OvjUppWb7NbfALSZEqd71NaN_Nlo_p7K_e26zGsV0nhlKnlhI-npXySGRbrEmZcevm_mJTzsryT2cDgZ63xp3FATPfB5bV13R6vhZhPlDXDh4VS8Concmfg6_gy8fNFf6jmbxd00Gido8CUsnI8CgNygKxJQIMHUgUIT_sSQtapqB002RhwrSsBS7N-BtxEdHDRmLyCewb_PfsRRPd25LjRLmDD3RfOhR9QdYoKsVaJN5PDB2sTxVHSejdEfzaSOwqRl6TfFQP08U3jtXn19dPU40kX8q71n6_VB0ybU7VCpAEUHY7OdiWJR2JG8Ak_rHixKXjn8bsaMqkfwmCqFCjRgNWOwqc7KcfhgTIew8EEvLtKTydV5q0jQY-tBtXYOCeeci1pzh1a6le3X6daeV2GeIRoz-LTygL74AZPe2kWd7wUHTOVCjxxrT8zAbiQdCrk9nxycMZTMvjmDKW3C6QHC2aG967vQQOR00oBf4B7uEZknNYfk6D5Q8mVkQFaSLa1qG9yojJ2rnLZn5Gn5_xrfhkjCnjCABLHJYBuAPU6OWe_0qqpZXW4Si3O8l9glvUEwbj1O7R2_HpsN6e5TBv7VVlMKzBAE1UAkm7mJwz7nV7d5-3mTHUEIOwYreHv10RPbPpqOj4zSQ45Fs5lb7E6yWlLKCGsF7BWcP8eWnOAwu4XZqjgG7aw_Q6xWFd7Xpu3cD8XcltkiK4m4qQ2DogwcBbU_5wKMOEf_OBwd3Ph5gM_mTYfZkozpg7o43462Hg0OkehtfAmAlAvuq9B1nhbHS_NI02wJ5sg0vgO-7AdPFZfJPiu8BDsaYHVVJfDNt1xR96Nmjk4OUpX4IqBHeAsrzkzXtqlTLVScfe7ZnumWgc3YzYuPlTbQketHEeko9f9O9t6cDx3K7EFQtpDF8Y4reASYvfG6eY5B_48WAUXMslxUJ0ZfZoAWqiH_wtDC6LosKtQdzsh9FvCWspq8ObqshB4fTIrPIeg3gsZjnneWp07AxWwKBBi5qt2lsAuteA2WEh86JGOLv1MENOJhc53mQ9pAoxKJh8ybjFWjhX1eO94DEgAGwZJqn4r4TSBdRKEPvElrY6pug2ZCttii3TAQOCgUJ37UvKa-2cMjfhQYvRinYLRIwh8uXwmLn7w8DMBpDG1CeD08YMV1--le4ataIRSPKoAHAB7wI82LAWSqy7IswqsRaC8gD-3lHY6KYEo7iRellP5EvfHf05cYsArZnQYIHXqwHsfnQK2JzlV8aCl5_IMsmG02Lm-ymTCuDfhq-pF7L4HwOfZlBfs3pqNu7ZMvO3LW9YBhVXhLkIRHdTPv921hsLF8-6bqzwhJ0bPc7DQo5kDu_bu4%3D&searchType=return&searchBags=0.0"
+    ],
+    "self_transfer": true,
+    "included_checked_bags": 0,
+    "kind": "return",
+    "source": "API.SH / Kiwi.com"
+  }
+]

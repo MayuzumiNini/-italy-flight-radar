@@ -23283,7 +23283,7 @@
       "cached": false
     }
   ],
-  "status": "ok",
+  "status": "ok (recent run; no repeat API calls)",
   "notification": {
     "channel": "report_only",
     "delivered": false,
@@ -28073,7 +28073,7 @@
       "source": "API.SH / Kiwi.com"
     }
   ],
-  "updated_at": "2026-11-09T12:32:40.755663+00:00",
+  "updated_at": "2026-11-09T12:35:29.024586+00:00",
   "quota": {
     "free": 995,
     "free_resets_at": "2026-12-09T02:51:58.972Z",
