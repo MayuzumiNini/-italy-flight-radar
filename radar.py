@@ -169,6 +169,8 @@ def save_report(state,data,cfg):
     data['status']=state.get('status','unknown')
     data['quota']=state.get('quota',{})
     write('docs/data.json',data)
+    write('docs/low-prices.json',data['low_prices'])
+    write('docs/search-history.json',data['history'])
     lines=['# Italy Flight Radar','',f"更新：{data['updated_at']}",f"状态：{data['status']}",'',
            '仅显示 API.SH / Kiwi 实际返回的报价；24小时后不再当作当前报价。',
            '低价记录不等于已发送通知。开口程为分开购票估算，不含意大利境内交通。','',
@@ -198,9 +200,11 @@ def main():
     if state.get('day')!=day:state.update(day=day,day_reserved=0)
     if state.get('day_reserved',0)>=28:
         print('Daily limit reached');return
-    # Prevent re-runs and repeated push events from spending again in the same 5h window.
-    if state.get('last_run') and clock-parse_time(state['last_run'])<dt.timedelta(hours=3):
-        print('Recent run; skipping duplicate');return
+    # Prevent re-runs and repeated push events from spending again in the same 2h window.
+    if state.get('last_run') and clock-parse_time(state['last_run'])<dt.timedelta(hours=2):
+        state['status']='ok (recent run; no repeat API calls)'
+        save_report(state,data,cfg);persist()
+        print('Recent run; report refreshed without API calls');return
     try:
         quota=account_guard(get('/v1/account'),clock)
         cycle=quota['free_resets_at']
