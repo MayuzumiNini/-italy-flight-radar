@@ -1,1 +1,18 @@
-{"offers":[],"history":[],"status":"not_started","notification":{"channel":"report_only","delivered":false}}
+{
+  "offers": [],
+  "history": [],
+  "status": "reserved",
+  "notification": {
+    "channel": "report_only",
+    "delivered": false,
+    "note": "尚未配置主动通知；不会向 ChatGPT 发消息"
+  },
+  "open_jaw": [],
+  "low_prices": [],
+  "updated_at": "2026-11-09T12:32:07.360203+00:00",
+  "quota": {
+    "free": 999,
+    "free_resets_at": "2026-12-09T02:51:58.972Z",
+    "utc_month_spend": 1
+  }
+}

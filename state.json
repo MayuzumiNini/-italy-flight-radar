@@ -1,1 +1,19 @@
-{"version":3,"cursor":0,"pending":false,"failure_streak":0}
+{
+  "version": 3,
+  "cursor": 7,
+  "pending": true,
+  "failure_streak": 0,
+  "day": "2026-11-09",
+  "day_reserved": 7,
+  "free_cycle": "2026-12-09T02:51:58.972Z",
+  "cycle_reserved": 7,
+  "utc_month": "2026-11",
+  "month_reserved": 7,
+  "last_run": "2026-11-09T12:32:06.481776+00:00",
+  "quota": {
+    "free": 999,
+    "free_resets_at": "2026-12-09T02:51:58.972Z",
+    "utc_month_spend": 1
+  },
+  "status": "reserved"
+}
