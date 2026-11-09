@@ -1,0 +1,19 @@
+name: API.SH safe account check
+on:
+  push:
+    paths:
+      - '.github/workflows/account-check.yml'
+      - 'account_check.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  account:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read free account metadata only
+        env:
+          APISH_API_KEY: ${{ secrets.APISH_API_KEY }}
+        run: python3 account_check.py
