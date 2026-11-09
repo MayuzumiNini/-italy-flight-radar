@@ -1,0 +1,20 @@
+{
+  "departure_date": "2027-02-02",
+  "return_date": "2027-02-10",
+  "flex_days": 3,
+  "target_cny": 5000,
+  "origins": [
+    "PVG",
+    "SHA"
+  ],
+  "italy_airports": [
+    "FCO",
+    "MXP",
+    "LIN"
+  ],
+  "queries_per_run": 4,
+  "max_offers": 25,
+  "max_stops_per_direction": 1,
+  "require_checked_bag": false,
+  "monthly_budget_cny": 30
+}
