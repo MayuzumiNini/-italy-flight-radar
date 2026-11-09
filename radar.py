@@ -1,284 +1,250 @@
-"""Italy flight price radar. No credentials needed for demo mode."""
+"""API.SH Kiwi monitor. Fail closed; never log credentials or raw responses."""
 import argparse
 import datetime as dt
-import itertools
-import json
-import os
-import pathlib
-import random
 import hashlib
-import time
-from decimal import Decimal
-from urllib.parse import urlencode
-import requests
+import json
+import math
+import os
+from pathlib import Path
+import subprocess
+import sys
+import urllib.request
+import urllib.error
+import urllib.parse
 
-ROOT = pathlib.Path(__file__).resolve().parent
-DATA = ROOT / 'docs' / 'data.json'
-STATE = ROOT / 'state.json'
-BASE = 'https://api.amadeus.com' if os.getenv('AMADEUS_ENV') == 'production' else 'https://test.api.amadeus.com'
+ROOT = Path(__file__).resolve().parent
+UTC = dt.timezone.utc
 
+class Stop(Exception):
+    pass
 
-def load_json(path, default):
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+def now():
+    return dt.datetime.now(UTC)
+
+def parse_time(s):
+    d = dt.datetime.fromisoformat(s.replace('Z', '+00:00'))
+    if d.tzinfo is None:
+        raise ValueError('timezone required')
+    return d
+
+def read(name):
+    return json.loads((ROOT / name).read_text())
+
+def write(name, value):
+    p = ROOT / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    temp = p.with_suffix(p.suffix + '.tmp')
+    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    temp.replace(p)
+
+def persist():
+    if os.environ.get('GITHUB_ACTIONS') != 'true':
+        raise Stop('Live queries require durable GitHub Actions state')
+    for cmd in [['git','add','state.json','docs'],
+                ['git','commit','-m','Save flight monitor checkpoint [skip ci]'],
+                ['git','push','origin','HEAD:main']]:
+        r = subprocess.run(cmd, cwd=ROOT, capture_output=True)
+        if r.returncode:
+            raise Stop('State persistence failed; no further API calls')
+
+def get(path, params=None):
+    key = os.environ.get('APISH_API_KEY')
+    if not key:
+        raise Stop('APISH_API_KEY missing')
+    url = 'https://api.api.sh' + path
+    if params:
+        url += '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={'x-api-key':key})
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=130) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        # Body, request headers and exception URL are intentionally not logged.
+        raise Stop('API HTTP ' + str(e.code)) from None
+    except Exception:
+        raise Stop('API connection/JSON failure; no automatic retry') from None
 
-
-def days(iso, delta):
-    d = dt.date.fromisoformat(iso)
-    return [(d + dt.timedelta(days=x)).isoformat() for x in range(-delta, delta + 1)]
-
-
-def priority(q, cfg):
-    """Prefer exact travel dates, PVG and FCO/MXP; rotate among equal scores."""
-    d = abs((dt.date.fromisoformat(q['departure']) - dt.date.fromisoformat(cfg['departure_date'])).days)
-    r = abs((dt.date.fromisoformat(q['return']) - dt.date.fromisoformat(cfg['return_date'])).days)
-    return (d + r, q['origin'] != 'PVG', q['arrive'] == 'LIN', q['leave'] == 'LIN', q['arrive'] != q['leave'])
-
-
-def monthly_usage(state, now):
-    month = now[:7]
-    if state.get('billing_month') != month:
-        state['billing_month'] = month
-        state['api_calls_reserved'] = 0
-    return state
-
-
-def pricing():
-    """Fail closed: user must configure exact quota and unit price from account."""
+def account_guard(a, clock):
     try:
-        free = int(os.environ['AMADEUS_MONTHLY_FREE_CALLS'])
-        usd = Decimal(os.environ['AMADEUS_PRICE_USD_PER_CALL'])
-        fx = Decimal(os.environ['USD_CNY_BUDGET_RATE'])
-        if min(free, usd, fx) < 0 or fx == 0:
-            raise ValueError('negative pricing')
-        return free, usd * fx
-    except (KeyError, ValueError, ArithmeticError) as exc:
-        raise RuntimeError('缺少或无效的 API 计费参数；必须设置 AMADEUS_MONTHLY_FREE_CALLS、AMADEUS_PRICE_USD_PER_CALL、USD_CNY_BUDGET_RATE，已安全停止付费查询') from exc
+        c = a['credits']
+        if a['success'] is not True or a['account']['unlimited'] is not False:
+            raise ValueError()
+        for k in ('free','plan','payg','total'):
+            if type(c[k]) not in (int,float) or not math.isfinite(c[k]) or c[k] < 0:
+                raise ValueError()
+        # No paid bucket or plan is permitted by this monitor.
+        if c['plan'] != 0 or c['payg'] != 0 or a['plan'] is not None or c['total'] != c['free']:
+            raise Stop('Paid account resources detected; free-only monitor stopped')
+        reset = parse_time(c['free_resets_at'])
+        if not clock < reset <= clock + dt.timedelta(days=32):
+            raise ValueError()
+        if c['free'] <= 20:
+            raise Stop('Free balance reserve reached (20 credits)')
+        if a['spend']['this_month'] >= 950:
+            raise Stop('UTC monthly account reserve reached (950 credits)')
+        return {'free':c['free'], 'free_resets_at':c['free_resets_at'],
+                'utc_month_spend':a['spend']['this_month']}
+    except (KeyError,TypeError,ValueError):
+        raise Stop('Account schema/reset time not verified; flight calls stopped') from None
 
+def queries(cfg):
+    result=[]
+    # Round trips and both sets of one-way legs rotate evenly across all cities.
+    for origin in cfg['origins']:
+        for city in cfg['destinations']:
+            for kind in ('return','outbound','inbound'):
+                result.append({'origin':origin,'city':city,'kind':kind})
+    return result
 
-def projected_cost(calls, free, unit_cny):
-    return Decimal(max(0, calls - free)) * unit_cny
+def params(q,cfg):
+    p={'from':q['origin'], 'to':q['city'], 'date':cfg['departure_start'],
+       'date_end':cfg['departure_end'], 'currency':'CNY','adults':1,'cabin':'economy',
+       'max_stops':1,'sort':'price','size':50,'page':1,'raw':0,'fresh':1}
+    if q['kind']=='return':
+        p.update(return_date=cfg['return_start'],return_date_end=cfg['return_end'])
+    elif q['kind']=='inbound':
+        p.update({'from':q['city'],'to':q['origin'],'date':cfg['return_start'],'date_end':cfg['return_end']})
+    return p
 
-
-def offer_fingerprint(o):
-    legs = o.get('legs', [])
-    return hashlib.sha256(json.dumps([o.get('origin'), o.get('arrive'), o.get('leave'), o.get('departure'), o.get('return'), legs], sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:24]
-
-
-def all_queries(cfg):
-    out = []
-    for origin, inbound, outbound, dep, ret in itertools.product(
-        cfg['origins'], cfg['italy_airports'], cfg['italy_airports'],
-        days(cfg['departure_date'], cfg['flex_days']),
-        days(cfg['return_date'], cfg['flex_days'])
-    ):
-        if dep < ret:
-            out.append({'origin': origin, 'arrive': inbound, 'leave': outbound,
-                        'departure': dep, 'return': ret})
-    return sorted(out, key=lambda q: priority(q, cfg))
-
-
-def token(session):
-    key, secret = os.getenv('AMADEUS_CLIENT_ID'), os.getenv('AMADEUS_CLIENT_SECRET')
-    if not key or not secret:
-        raise RuntimeError('请设置 AMADEUS_CLIENT_ID 和 AMADEUS_CLIENT_SECRET')
-    r = session.post(BASE + '/v1/security/oauth2/token', data={
-        'grant_type': 'client_credentials', 'client_id': key, 'client_secret': secret
-    }, timeout=25)
-    r.raise_for_status()
-    return r.json()['access_token']
-
-
-def search(session, access_token, query, max_offers):
-    # POST supports open-jaw, including different Italian arrival/departure airports.
-    payload = {
-        'currencyCode': 'CNY',
-        'originDestinations': [
-            {'id': '1', 'originLocationCode': query['origin'],
-             'destinationLocationCode': query['arrive'],
-             'departureDateTimeRange': {'date': query['departure']}},
-            {'id': '2', 'originLocationCode': query['leave'],
-             'destinationLocationCode': query['origin'],
-             'departureDateTimeRange': {'date': query['return']}}
-        ],
-        'travelers': [{'id': '1', 'travelerType': 'ADULT'}],
-        'sources': ['GDS'],
-        'searchCriteria': {'maxFlightOffers': max_offers}
-    }
-    r = session.post(BASE + '/v2/shopping/flight-offers',
-        headers={'Authorization': 'Bearer ' + access_token,
-                 'Content-Type': 'application/json',
-                 'X-HTTP-Method-Override': 'GET'},
-        json=payload, timeout=55)
-    if r.status_code == 429:
-        raise RuntimeError('API 429：达到速率或配额限制')
-    r.raise_for_status()
-    return r.json().get('data', [])
-
-
-def checked_bag(offer):
-    vals = []
-    for traveler in offer.get('travelerPricings', []):
-        for fare in traveler.get('fareDetailsBySegment', []):
-            bags = fare.get('includedCheckedBags', {})
-            vals.append(bool(bags.get('quantity', 0) or bags.get('weight', 0)))
-    return bool(vals) and all(vals)
-
-
-def normalize(offer, query, cfg, timestamp):
-    itineraries = offer.get('itineraries', [])
-    if len(itineraries) != 2:
-        return None
-    stops = [max(0, len(it.get('segments', [])) - 1) for it in itineraries]
-    if any(n > cfg['max_stops_per_direction'] for n in stops):
-        return None
-    if any(not it.get('segments') for it in itineraries):
-        return None
-    bag = checked_bag(offer)
-    if cfg.get('require_checked_bag') and not bag:
-        return None
+def normalize(o,q,cfg,stamp,meta):
     try:
-        amount = float(Decimal(offer['price']['grandTotal']))
-    except (KeyError, ValueError, TypeError):
+        price=o['price']
+        if o['currency'].upper()!='CNY' or type(price) not in (int,float) or not math.isfinite(price) or price<=0:
+            return None
+        if o.get('hidden_city') is not False or o.get('throwaway_ticket') is not False:
+            return None
+        directions=[o['outbound']]
+        if q['kind']=='return': directions.append(o['inbound'])
+        legs=[]
+        for n,d in enumerate(directions):
+            if type(d['stops']) is not int or not 0<=d['stops']<=1 or not d['legs']:
+                return None
+            day=d['departure'][:10]
+            inbound=q['kind']=='inbound' or n==1
+            lo,hi=(cfg['return_start'],cfg['return_end']) if inbound else (cfg['departure_start'],cfg['departure_end'])
+            if not lo<=day<=hi: return None
+            legs.append({'from':d['from']['code'],'to':d['to']['code'],
+                         'departure':d['departure'],'arrival':d['arrival'],'stops':d['stops'],
+                         'details':d['legs']})
+        urls=[b['url'] for b in o.get('booking_options',[]) if isinstance(b.get('url'),str) and b['url'].startswith('https://')]
+        fp=hashlib.sha256(json.dumps([q,legs],sort_keys=True).encode()).hexdigest()[:24]
+        return {'id':fp,'query':q,'price_cny':price,'legs':legs,'checked_at':stamp,
+                'fetched_at':meta.get('fetched_at'),'cached':meta.get('cached'),
+                'booking_urls':urls,'self_transfer':o.get('self_transfer'),
+                'included_checked_bags':o.get('included_checked_bags'),
+                'kind':q['kind'],'source':'API.SH / Kiwi.com'}
+    except (KeyError,TypeError,ValueError,AttributeError):
         return None
-    currency = offer['price'].get('currency', 'CNY')
-    if currency != 'CNY':
-        return None
-    legs = []
-    for it in itineraries:
-        segments = it['segments']
-        legs.append({
-            'from': segments[0]['departure']['iataCode'],
-            'to': segments[-1]['arrival']['iataCode'],
-            'depart_at': segments[0]['departure']['at'],
-            'arrive_at': segments[-1]['arrival']['at'],
-            'stops': len(segments) - 1,
-            'airlines': list(dict.fromkeys(s.get('carrierCode', '?') for s in segments)),
-            'via': [s['arrival']['iataCode'] for s in segments[:-1]]
-        })
-    return {'key': '|'.join(map(str, [query['origin'], query['arrive'], query['leave'],
-                                     query['departure'], query['return'],
-                                     ','.join(legs[0]['airlines']), ','.join(legs[1]['airlines'])])),
-            'price_cny': amount, 'currency': currency, 'legs': legs,
-            'departure': query['departure'], 'return': query['return'],
-            'arrive': query['arrive'], 'leave': query['leave'],
-            'origin': query['origin'], 'checked_bag_included': bag,
-            'checked_bag_status': 'included' if bag else 'not_confirmed',
-            'source': 'Amadeus Flight Offers Search', 'checked_at': timestamp,
-            'below_target': amount <= cfg['target_cny']}
 
+def open_jaw(offers, clock):
+    # Pair only recent same-origin legs; no ground-transfer cost is invented.
+    fresh=[o for o in offers if clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
+    out=[]
+    for a in fresh:
+        if a['kind']!='outbound':continue
+        for b in fresh:
+            if b['kind']!='inbound' or a['query']['origin']!=b['query']['origin'] or a['query']['city']==b['query']['city']:continue
+            if a['legs'][0]['arrival']>=b['legs'][0]['departure']:continue
+            out.append({'id':a['id']+'-'+b['id'],'kind':'open_jaw_separate_tickets',
+                        'price_cny':round(a['price_cny']+b['price_cny'],2),
+                        'legs':a['legs']+b['legs'],'booking_urls':a['booking_urls']+b['booking_urls'],
+                        'checked_at':min(a['checked_at'],b['checked_at']),
+                        'warning':'两张单程票估算；不同查询时间；不含罗马/米兰地面交通；请分别核价',
+                        'self_transfer':True})
+    return sorted(out,key=lambda o:o['price_cny'])[:30]
+
+def save_report(state,data,cfg):
+    clock=now()
+    data['offers']=[o for o in data['offers'] if clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
+    combinations=open_jaw(data['offers'],clock)
+    candidates=[o for o in data['offers'] if o['kind']=='return']+combinations
+    data['open_jaw']=combinations
+    data['low_prices']=[o for o in candidates if o['price_cny']<=cfg['target_cny']]
+    data['notification']={'channel':'report_only','delivered':False,'note':'尚未配置主动通知；不会向 ChatGPT 发消息'}
+    data['updated_at']=clock.isoformat()
+    data['status']=state.get('status','unknown')
+    data['quota']=state.get('quota',{})
+    write('docs/data.json',data)
+    lines=['# Italy Flight Radar','',f"更新：{data['updated_at']}",f"状态：{data['status']}",'',
+           '仅显示 API.SH / Kiwi 实际返回的报价；24小时后不再当作当前报价。',
+           '低价记录不等于已发送通知。开口程为分开购票估算，不含意大利境内交通。','',
+           '|类型|路线|人民币|查询时间|','|---|---|---:|---|']
+    for o in sorted(candidates,key=lambda x:x['price_cny'])[:30]:
+        route=' / '.join(x['from']+'→'+x['to']+' '+x['departure'][:10] for x in o['legs'])
+        lines.append(f"|{o['kind']}|{route}|{o['price_cny']:.2f}|{o['checked_at']}|")
+    if not candidates:lines.append('\n尚无符合条件的往返报价；这不表示市场没有航班。')
+    lines.extend(['','详细航段、行李、订票链接及报价历史见 [data.json](data.json)。'])
+    (ROOT/'docs'/'REPORT.md').write_text('\n'.join(lines)+'\n')
+    write('state.json',state)
+    summary=os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary: Path(summary).write_text('\n'.join(lines)+'\n')
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--demo', action='store_true')
-    args = parser.parse_args()
-    cfg = load_json(ROOT / 'config.json', {})
-    now = dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
-    old = load_json(DATA, {'history': [], 'offers': [], 'alerts': []})
-    state = monthly_usage(load_json(STATE, {'cursor': 0}), now)
-    queries = all_queries(cfg)
-    cursor = state['cursor'] % len(queries)
-    count = min(cfg['queries_per_run'], len(queries))
-    budget_warning = False
-    budget_stopped = False
-    cost_cny = Decimal('0')
-    if not args.demo:
-        free, unit = pricing()
-        budget = Decimal(str(cfg['monthly_budget_cny']))
-        used = int(state['api_calls_reserved'])
-        remaining = 0
-        for i in range(count):
-            if projected_cost(used + i + 1, free, unit) > budget:
-                break
-            remaining += 1
-        count = remaining
-        cost_cny = projected_cost(used, free, unit)
-        budget_stopped = count == 0
-        budget_warning = budget > 0 and projected_cost(used + count, free, unit) >= budget * Decimal('0.8')
-    batch = [queries[(cursor + i) % len(queries)] for i in range(count)]
-    new = []
-    errors = []
-    if args.demo:
-        rng = random.Random(42)
+    ap=argparse.ArgumentParser();ap.add_argument('--check',action='store_true');args=ap.parse_args()
+    cfg=read('config.json');state=read('state.json');clock=now()
+    if state.get('version')!=3:raise Stop('State missing or incompatible; refusing reset')
+    data=read('docs/data.json')
+    if args.check:
+        print(json.dumps(account_guard(get('/v1/account'),clock)));return
+    if clock.date()>dt.date.fromisoformat(cfg['departure_end']):
+        print('Travel departure window has ended; no API calls');return
+    if state.get('pending'):raise Stop('Previous run interrupted; inspect reserved batch before clearing pending')
+    if state.get('failure_streak',0)>=3:raise Stop('Circuit open after 3 failed runs; manual review required')
+    day=clock.date().isoformat()
+    if state.get('day')!=day:state.update(day=day,day_reserved=0)
+    if state.get('day_reserved',0)>=28:
+        print('Daily limit reached');return
+    # Prevent re-runs and repeated push events from spending again in the same 5h window.
+    if state.get('last_run') and clock-parse_time(state['last_run'])<dt.timedelta(hours=3):
+        print('Recent run; skipping duplicate');return
+    try:
+        quota=account_guard(get('/v1/account'),clock)
+        cycle=quota['free_resets_at']
+        if state.get('free_cycle')!=cycle:
+            if state.get('free_cycle') and parse_time(state['free_cycle'])>clock:
+                raise Stop('Unexpected free reset change; review required')
+            state.update(free_cycle=cycle,cycle_reserved=0)
+        month=clock.strftime('%Y-%m')
+        if state.get('utc_month')!=month:state.update(utc_month=month,month_reserved=0)
+        count=min(7,28-state.get('day_reserved',0),900-state.get('cycle_reserved',0),
+                  900-state.get('month_reserved',0),int(quota['free'])-20,950-int(quota['utc_month_spend']))
+        if count<=0:raise Stop('Local quota reserve reached')
+        allq=queries(cfg);cursor=state['cursor']
+        batch=[allq[(cursor+i)%len(allq)] for i in range(count)]
+        state.update(pending=True,last_run=clock.isoformat(),quota=quota,status='reserved',
+                     cursor=(cursor+count)%len(allq))
+        for field in ('cycle_reserved','month_reserved','day_reserved'):state[field]=state.get(field,0)+count
+        save_report(state,data,cfg);persist()  # durable before any credit-bearing call
         for q in batch:
-            price = rng.randint(3800, 7400)
-            new.append({'key': '|'.join(q.values()), 'price_cny': price, 'currency': 'CNY',
-                        'origin': q['origin'], 'arrive': q['arrive'], 'leave': q['leave'],
-                        'departure': q['departure'], 'return': q['return'],
-                        'checked_bag_included': False, 'checked_bag_status': 'not_confirmed',
-                        'legs': [], 'checked_at': now, 'below_target': price <= cfg['target_cny'],
-                        'source': 'DEMO (synthetic)'})
-    elif batch:
-        with requests.Session() as session:
-            auth = token(session)
-            for q in batch:
-                # Reserve BEFORE the request, including failures, to avoid undercounting.
-                state['api_calls_reserved'] += 1
-                STATE.write_text(json.dumps(state, indent=2), encoding='utf-8')
-                try:
-                    offers = search(session, auth, q, cfg['max_offers'])
-                    for o in offers:
-                        normalized = normalize(o, q, cfg, now)
-                        if normalized:
-                            new.append(normalized)
-                except (requests.RequestException, RuntimeError, ValueError) as exc:
-                    errors.append(f"{q['origin']}-{q['arrive']}/{q['leave']} {q['departure']}: {exc}")
-                time.sleep(0.4)
-    old_offers = {o['key']: o for o in old.get('offers', [])}
-    prior_alerts = old.get('alerts', [])
-    fresh_alerts = []
-    # Stable itinerary fingerprint avoids duplicate alerts from changed provider offer IDs.
-    alert_state = state.setdefault('alert_state', {})
-    for offer in new:
-        fingerprint = offer_fingerprint(offer)
-        previous_price = alert_state.get(fingerprint)
-        price = offer['price_cny']
-        if offer['below_target'] and (previous_price is None or price < previous_price):
-            fresh_alerts.append(offer)
-        alert_state[fingerprint] = price
-        old_offers[offer['key']] = offer
-    # Bound dedup state so it does not grow forever.
-    if len(alert_state) > 10000:
-        state['alert_state'] = dict(list(alert_state.items())[-5000:])
-    history = old.get('history', [])
-    history.extend({'checked_at': now, 'key': o['key'], 'price_cny': o['price_cny']}
-                   for o in new)
-    # Keep bounded state in GitHub; remove stale offers after 14 days.
-    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=14)
-    def recent(o):
-        try:
-            return dt.datetime.fromisoformat(o['checked_at']) >= cutoff
-        except (ValueError, KeyError):
-            return False
-    result = {
-        'mode': 'demo' if args.demo else os.getenv('AMADEUS_ENV', 'test'),
-        'updated_at': now, 'target_cny': cfg['target_cny'],
-        'queries_this_run': len(batch), 'total_query_combinations': len(queries),
-        'offers': sorted((o for o in old_offers.values() if recent(o)),
-                         key=lambda o: o['price_cny'])[:300],
-        'history': history[-3000:],
-        'alerts': (fresh_alerts + prior_alerts)[:100],
-        'billing': {'month': state['billing_month'], 'calls_reserved': state['api_calls_reserved'],
-                    'free_calls_configured': None if args.demo else free,
-                    'estimated_spend_cny': None if args.demo else str(projected_cost(state['api_calls_reserved'], free, unit)),
-                    'monthly_budget_cny': cfg['monthly_budget_cny'],
-                    'warning_80_percent': budget_warning, 'budget_stopped': budget_stopped},
-        'errors': errors[:20]
-    }
-    DATA.parent.mkdir(exist_ok=True)
-    DATA.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
-    # Retry failed queries next run rather than silently skipping them.
-    # Always advance past attempted combinations; prevents repeating failures indefinitely.
-    state['cursor'] = (cursor + count) % len(queries)
-    STATE.write_text(json.dumps(state, indent=2), encoding='utf-8')
-    print(f"mode={result['mode']} queries={count} offers={len(new)} alerts={len(fresh_alerts)} errors={len(errors)}")
-    if errors:
-        print('\n'.join(errors))
-    # Non-zero failure when nothing was successfully searched.
-    if errors and not new:
-        print('所有查询失败；费用预留记录已保存。')
+            state['quota']=account_guard(get('/v1/account'),now())
+            response=get('/kiwi/v1/flights',params(q,cfg))
+            if response.get('credits_used') not in (0,1) or not isinstance(response.get('itineraries'),list):
+                raise Stop('Flight schema/cost changed; review required')
+            stamp=now().isoformat()
+            new=[v for o in response['itineraries'] if (v:=normalize(o,q,cfg,stamp,response))]
+            data['offers']=[o for o in data['offers'] if o['query']!=q]+new
+            data['history'].append({'checked_at':stamp,'query':q,'offer_count':len(new),
+                                    'minimum_cny':min([o['price_cny'] for o in new],default=None),
+                                    'fetched_at':response.get('fetched_at'),'cached':response.get('cached')})
+            data['history']=data['history'][-5000:]
+        state.update(status='ok',failure_streak=0,pending=False)
+    except Stop as e:
+        state.update(status=str(e),failure_streak=state.get('failure_streak',0)+1)
+        # Only known, handled failures clear the marker. A persistence failure never does.
+        if 'persistence' in str(e):raise
+        state['pending']=False
+        save_report(state,data,cfg);persist()
+        raise
+    save_report(state,data,cfg);persist()
+    print('Flight monitoring complete; see docs/REPORT.md')
 
-if __name__ == '__main__':
-    main()
+if __name__=='__main__':
+    try:main()
+    except Stop as e:
+        print(str(e));sys.exit(1)
+    except Exception:
+        print('Unexpected failure; no retry. Check persisted pending state.');sys.exit(1)

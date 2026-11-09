@@ -1,79 +1,46 @@
-# 意大利机票雷达（Italy Flight Radar）
+# Italy Flight Radar
 
-**已实现**：Amadeus 航班报价搜索（含开口程）、日期轮询、每方向最多一次转机、人民币 5000 元阈值、历史价格 JSON、响应式静态网页、GitHub Actions 每日两次运行。
+API.SH Kiwi 实时报价监测。目标：1名成人、经济舱、上海/北京/杭州往返罗马/米兰，2027-01-30 至 02-05 出发、02-07 至 02-13 回程，每方向最多一次中转，人民币5000元。
 
-**未实现**：从 GitHub Actions 直接向 ChatGPT 推送通知；ChatGPT 不能直接接收任意第三方 webhook。可以在 ChatGPT 另建定时检查任务，但它独立于本程序，不保证读取私有仓库数据。也没有自动购票功能。
+## 查看结果
 
-## 1. 本地演示（不需要 API）
+[最新报告](docs/REPORT.md) · [报价及历史数据](docs/data.json) · [运行记录](../../actions/workflows/flight-radar.yml)
 
-```bash
-pip install -r requirements.txt
-python radar.py --demo
-python -m http.server 8000 --directory docs
-```
+没有随机演示价格。未返回报价不代表市场没有航班。价格、行李、自行转机、最终出票条件需在真实订票链接核验。
 
-浏览器打开 http://localhost:8000 。**演示价格为随机生成，不是实际报价。**
+## 自动运行
 
-## 2. 接入真实报价
+北京时间08:00、12:00、18:00、23:00（UTC 00:00/04:00/10:00/15:00）触发。GitHub 可能延迟、跳过任务；不是准点服务。公共仓库长时间无活动可能被停用定时任务。
 
-1. 注册 https://developers.amadeus.com/ ，创建 Self-Service App，获取 API Key 和 API Secret。
-2. 先用测试环境验证程序；**测试环境数据有限且可能是缓存数据**。
-3. 需要真实价格时，在 Amadeus 控制台申请 Production，并确认该 API 的可用性、免费额度、账单及条款。
-4. 在终端设置环境变量（不要把密钥提交到 GitHub）：
+每次最多7次，UTC每天最多28次，31天最多868次（计划运行，不含其他程序）。18个查询类型轮换：3个中国城市 × 2个意大利城市 × 往返/去程单程/回程单程。每次查询覆盖整个日期窗口，价格排序取前50条，不自动翻页，不保证穷尽所有日期组合或航空公司。上海 SHA、北京 BJS、杭州 HGH、罗马 ROM、米兰 MIL 使用城市/机场代码，由 Kiwi 解析。
 
-```bash
-export AMADEUS_CLIENT_ID='你的key'
-export AMADEUS_CLIENT_SECRET='你的secret'
-export AMADEUS_ENV='production'
-python radar.py
-```
+开口程使用最近24小时内、同一中国出发城市的两个单程报价组合，例如上海→罗马、米兰→上海。**这是两张票估算，不是联程报价；不含意大利境内地面交通。** 两个价格可能在不同时间取得，需要分别核价。
 
-Windows PowerShell 使用 `$env:AMADEUS_CLIENT_ID="..."` 等语法。
+## 免费额度保护
 
-## 3. 自动运行 + 手机网页
+- 密钥只从 GitHub Secret `APISH_API_KEY` 读取，放在 `x-api-key` 请求头；不输出密钥、原始账户数据或错误正文，不跟随重定向。
+- 每次机票请求前免费读取 `/v1/account`，仅允许免费余额；发现套餐、充值余额、字段不明、重置时间异常就停止。
+- 免费余额保留20 credits；UTC全账户月用量达到950时停止；本程序每免费周期、每UTC月保守预留最多900次。失败或中断的批次也不退还本地预留。
+- 免费周期使用接口真实 `credits.free_resets_at`，不是假设每月9日零点。首次实测下次为2026-12-09T02:51:58.972Z（北京时间12月9日10:51:58）。密钥1000 cap在UTC每月1日重置，是另一套限制；程序分别计数，不在1日重新发放免费额度。
+- API.SH 当前每次 flight search 1 credit；每次调用检查返回成本，变化后停机。`fresh=1` 获取新报价，缓存也会扣额度。
+- 不自动充值、不购买套餐、不设置支付方式。**账户必须保持免费模式并关闭自动充值。** 这份代码不能取消账户中其他程序/人工操作开启的付费服务，也不能替供应商作永久不收费保证。请勿给此账户添加付费套餐或充值、与其他程序共享密钥。
 
-1. 新建 GitHub 仓库，将本项目所有文件上传（包括 `.github/workflows/monitor.yml`）。**建议私人仓库**，若开启 GitHub Pages，公开页面会暴露你监测的航线和历史数据。
-2. Settings → Secrets and variables → Actions → New repository secret，添加 `AMADEUS_CLIENT_ID`、`AMADEUS_CLIENT_SECRET`。
-3. Actions → Variables，创建 `AMADEUS_ENV=production`（未配置则默认 test）。
-4. Settings → Actions → General → Workflow permissions，允许 Read and write permissions。确认工作流可向仓库写入数据。
-5. Actions → Italy flight radar → Run workflow 手动运行一次。
-6. Settings → Pages → Build and deployment → Deploy from a branch，选择 main /docs，开启 GitHub Pages。
-7. 用手机打开生成的 Pages URL，可添加到主屏幕。
+## 持久化与故障
 
-默认每天 **北京时间 09:17 / 21:17** 运行（GitHub 定时任务可能延迟或被跳过）。每次查 8 组，逐步覆盖所有组合。每天约 16 个 API 查询，全部组合共 882 个；完整轮询约需 56 天。若需要更密集监控，可提高 `queries_per_run`，但要先核算配额。当前程序对失败批次会重试，API 失败不会产生虚假报价。
+同一时间只运行一个监测任务。先将整批额度预留、轮询位置和 pending 标记提交并推送到 main，成功后才发起机票请求；结束后把价格、状态和报告一起提交。禁止强制推送。
 
-## 4. 重要限制
+状态缺失/损坏或 pending 未清除时停止，不自动把计数归零。3次连续失败后停止，HTTP错误不做立即重试；3小时内重复触发不调用API。2027-02-05之后停止查询。
 
-- Amadeus API 航空公司覆盖并不完整，尤其部分廉航/特定航司；不能承诺覆盖携程、飞猪、天巡全部报价。
-- Amadeus 报价可能与实际出票价不同；需最终核价。若 `checked_bag_included=false`，仅表示未能证实全程包含托运行李，**不是一定不包含**。
-- 当前提醒阈值写入 `docs/data.json` 的 `alerts`，网页展示低价标识，但**不会向 ChatGPT 账号推送**。可独立设置 ChatGPT 定时查询公开数据，或者后续集成邮件/Telegram 等通知渠道。
-- 单独的机票报价不是最终购票链接，本软件不伪造订票链接。
-- 页面仅显示每条路线最新记录和历史每日最低值，不是市场完整最低价。
-- 轮询顺序是确定性的，日期组合会轮换；需要提高频率可修改配置。
+排障：查看 Actions 日志和 state.json。修复原因后，人工保留所有额度计数，核对供应商用量，再清除 pending 或 failure_streak。不要删除 state.json；不要为了恢复运行重置预算计数。随后可 Actions → Italy Flight Radar → Run workflow。
 
-## 5. 修改参数
+仓库目前公开，报告和航线偏好也公开。程序无需 GitHub Pages；docs/REPORT.md 可直接阅读。没有配置或验证网站部署。
 
-编辑 `config.json`：`queries_per_run` 每次查询组数，`target_cny` 目标总价，`flex_days` 日期浮动天数，`require_checked_bag` 是否只显示确认含托运行李的报价。
+## 提醒状态
 
-## v2 高频监测与硬性预算保护（2026-11-09）
+目前**仅写入报告，不主动发送消息**。`notification.delivered=false`，不伪称邮件/Telegram/ChatGPT已送达。GitHub无法直接向ChatGPT聊天推送。独立定时检查聊天任务需另行设置，也不是实时低价通知。
 
-- GitHub Actions 每小时 UTC 第 17 分钟运行一次（GitHub 不保证准点）；每次最多 **4 个**日期/航线组合，优先靠近 2027-02-02 / 2027-02-10 的组合。
-- 预算 **¥30 / UTC 自然月**；程序在每次请求前预留一次计费调用量（即使请求失败也计入），每月自动重置。达到预计预算后不再调用报价 API。运行并发限制为 1。
-- **必须**在仓库 Settings → Secrets and variables → Actions → Variables 设置以下三个数值，否则生产/测试查询均会安全停止：
-  - `AMADEUS_MONTHLY_FREE_CALLS`：你在 Amadeus 控制台看到的 **Flight Offers Search 对应环境**的每月免费请求次数（纯数字）。不知道时填 `0`。
-  - `AMADEUS_PRICE_USD_PER_CALL`：该接口超过免费额度后**每次请求**的美元单价（如平台按千次计费，请先除以 1000）。不知道时不要启动付费查询。
-  - `USD_CNY_BUDGET_RATE`：保守的美元兑人民币预算换算率，由你核对后设置（例如 8.0 只是示意，并非实时汇率）。
-- `AMADEUS_ENV=production` 才能用生产环境；`test` 的价格不能当真实可售价格。
-- 监测页面显示本月已预留请求次数、预计费用和 80% 警戒。价格低于 ¥5000 时产生事件；同一行程在报价进一步降低时才重复提示。事件只写入 JSON/网页，**不会直接推送 ChatGPT**。
-- 费用计算是**保守的客户端估算**，不是供应商的账单或真实支付限制。Amadeus 可能按接口、账户、环境分别计费；其他 API、手工调用、汇率变化、税费或不同计费周期不在此计数器内。**请在供应商侧设置预算/额度警报，并定期核对账单。**
-- GitHub Pages 公共页面展示价格历史；切勿将 API 密钥放在 `docs/` 或仓库文件里。GitHub Actions 的定时工作流可能延迟或跳过；如仓库持续不活动，定时任务可能被停用。
-- 全部组合多于单次可查数量；每小时 4 组并不意味着所有日期组合都每小时刷新。程序使用排序后游标轮询，重点日期会更早被扫描，但完整轮询后才回到起点。
-- 当前不支持自动核验票价、自动购票或 ChatGPT 私有推送。机票报价请到正规购票平台二次确认。
+## 验证
 
-### 首次部署核对
+`python -m unittest -v test_radar.py`：无网络测试额度保护、每月1日不重置免费周期、持久化失败禁止查询、中断状态停机、航线轮询和报价筛选。
 
-1. 在 GitHub 创建仓库并上传项目文件，先保持 `AMADEUS_ENV=test`。
-2. 设置密钥 `AMADEUS_CLIENT_ID`、`AMADEUS_CLIENT_SECRET`；再设置上述三个计费 Variables。
-3. 在 Actions 页面手动执行一次；查看运行日志、`docs/data.json` 的 `billing` 字段和 `state.json` 的 `api_calls_reserved`。
-4. 申请并核对 Amadeus 生产权限、接口定价及覆盖后再切换 `AMADEUS_ENV=production`。
-5. GitHub Pages 选择 main 分支 `/docs` 目录。测试环境页面不是实时票价。
+文档：https://api.sh/docs/kiwi-flights · https://api.sh/docs#account · https://api.sh/docs/api-keys

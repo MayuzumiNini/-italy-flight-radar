@@ -1,32 +1,38 @@
-
 name: Italy Flight Radar
-
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '0 0,4,10,15 * * *'
   workflow_dispatch:
-
+  push:
+    paths:
+      - 'radar.py'
+      - 'config.json'
+      - 'test_radar.py'
+      - '.github/workflows/flight-radar.yml'
 permissions:
-  contents: read
-
+  contents: write
+concurrency:
+  group: italy-flight-radar
+  cancel-in-progress: false
 jobs:
   radar:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Deployment safety check
+      - name: Test quota and flight validation (no network)
+        run: python -m unittest -v test_radar.py
+      - name: Configure durable state commits
         run: |
-          python -m py_compile radar.py
-          echo "Deployment check passed"
-          echo "Live flight queries are disabled"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Run free-only flight monitor
+        env:
+          APISH_API_KEY: ${{ secrets.APISH_API_KEY }}
+        run: python radar.py
