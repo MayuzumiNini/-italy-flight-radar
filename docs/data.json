@@ -18643,7 +18643,7 @@
       "cached": false
     }
   ],
-  "status": "ok (recent run; no repeat API calls)",
+  "status": "reserved",
   "notification": {
     "channel": "report_only",
     "delivered": false,
@@ -23272,10 +23272,10 @@
     }
   ],
   "low_prices": [],
-  "updated_at": "2026-11-09T12:41:46.989421+00:00",
+  "updated_at": "2026-11-09T15:48:58.556322+00:00",
   "quota": {
-    "free": 995,
+    "free": 992,
     "free_resets_at": "2026-12-09T02:51:58.972Z",
-    "utc_month_spend": 5
+    "utc_month_spend": 8
   }
 }
