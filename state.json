@@ -2,7 +2,7 @@
   "version": 3,
   "cursor": 1,
   "pending": false,
-  "failure_streak": 1,
+  "failure_streak": 2,
   "day": "2026-11-10",
   "day_reserved": 0,
   "free_cycle": "2026-12-09T02:51:58.972Z",
