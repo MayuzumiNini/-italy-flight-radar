@@ -2,9 +2,9 @@
   "version": 3,
   "cursor": 1,
   "pending": false,
-  "failure_streak": 0,
-  "day": "2026-11-09",
-  "day_reserved": 13,
+  "failure_streak": 1,
+  "day": "2026-11-10",
+  "day_reserved": 0,
   "free_cycle": "2026-12-09T02:51:58.972Z",
   "cycle_reserved": 13,
   "utc_month": "2026-11",
@@ -15,5 +15,5 @@
     "free_resets_at": "2026-12-09T02:51:58.972Z",
     "utc_month_spend": 12
   },
-  "status": "ok"
+  "status": "API HTTP 503"
 }
