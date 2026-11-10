@@ -6,9 +6,11 @@
     "ROM",
     "MIL"
   ],
-  "departure_start": "2027-01-30",
-  "departure_end": "2027-02-05",
-  "return_start": "2027-02-07",
-  "return_end": "2027-02-13",
-  "target_cny": 5000
+  "departure_start": "2027-02-01",
+  "departure_end": "2027-02-02",
+  "return_start": "2027-02-10",
+  "return_end": "2027-02-11",
+  "target_cny": 5000,
+  "max_duration_hours": 20,
+  "criteria_version": 4
 }

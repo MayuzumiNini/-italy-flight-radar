@@ -103,7 +103,7 @@ def queries(cfg):
 def params(q,cfg):
     p={'from':q['origin'], 'to':q['city'], 'date':cfg['departure_start'],
        'date_end':cfg['departure_end'], 'currency':'CNY','adults':1,'cabin':'economy',
-       'max_stops':1,'sort':'price','size':50,'page':1,'raw':0,'fresh':1}
+       'max_stops':1,'max_duration':cfg['max_duration_hours'],'sort':'price','size':50,'page':1,'raw':0,'fresh':1}
     if q['kind']=='return':
         p.update(return_date=cfg['return_start'],return_date_end=cfg['return_end'])
     elif q['kind']=='inbound':
@@ -127,16 +127,30 @@ def normalize(o,q,cfg,stamp,meta):
             inbound=q['kind']=='inbound' or n==1
             lo,hi=(cfg['return_start'],cfg['return_end']) if inbound else (cfg['departure_start'],cfg['departure_end'])
             if not lo<=day<=hi: return None
+            departure=dt.datetime.fromisoformat(d['departure'])
+            if not inbound:
+                t=departure.time()
+                if not ((day=='2027-02-01' and t>=dt.time(18)) or
+                        (day=='2027-02-02' and t<=dt.time(2))):
+                    return None
+            duration=d.get('duration_seconds')
+            if type(duration) not in (int,float) or not math.isfinite(duration) or not 0<duration<=cfg['max_duration_hours']*3600:
+                return None
+            china=d['to']['code'] if inbound else d['from']['code']
+            italy=d['from']['code'] if inbound else d['to']['code']
+            if china not in ('PVG','SHA') or italy not in {'ROM':('FCO','CIA'),'MIL':('MXP','LIN','BGY')}[q['city']]:
+                return None
+            if len(d['legs'])>2: return None
             legs.append({'from':d['from']['code'],'to':d['to']['code'],
                          'departure':d['departure'],'arrival':d['arrival'],'stops':d['stops'],
-                         'details':d['legs']})
+                         'duration_seconds':duration,'details':d['legs']})
         urls=[b['url'] for b in o.get('booking_options',[]) if isinstance(b.get('url'),str) and b['url'].startswith('https://')]
         fp=hashlib.sha256(json.dumps([q,legs],sort_keys=True).encode()).hexdigest()[:24]
         return {'id':fp,'query':q,'price_cny':price,'legs':legs,'checked_at':stamp,
                 'fetched_at':meta.get('fetched_at'),'cached':meta.get('cached'),
                 'booking_urls':urls,'self_transfer':o.get('self_transfer'),
                 'included_checked_bags':o.get('included_checked_bags'),
-                'kind':q['kind'],'source':'API.SH / Kiwi.com'}
+                'criteria_version':cfg['criteria_version'],'kind':q['kind'],'source':'API.SH / Kiwi.com'}
     except (KeyError,TypeError,ValueError,AttributeError):
         return None
 
@@ -150,7 +164,7 @@ def open_jaw(offers, clock):
             if b['kind']!='inbound' or a['query']['origin']!=b['query']['origin'] or a['query']['city']==b['query']['city']:continue
             if a['legs'][0]['arrival']>=b['legs'][0]['departure']:continue
             out.append({'id':a['id']+'-'+b['id'],'kind':'open_jaw_separate_tickets',
-                        'price_cny':round(a['price_cny']+b['price_cny'],2),
+                        'criteria_version':a.get('criteria_version'),'price_cny':round(a['price_cny']+b['price_cny'],2),
                         'legs':a['legs']+b['legs'],'booking_urls':a['booking_urls']+b['booking_urls'],
                         'checked_at':min(a['checked_at'],b['checked_at']),
                         'warning':'两张单程票估算；不同查询时间；不含罗马/米兰地面交通；请分别核价',
@@ -159,12 +173,12 @@ def open_jaw(offers, clock):
 
 def save_report(state,data,cfg):
     clock=now()
-    data['offers']=[o for o in data['offers'] if o['query']['origin'] in cfg['origins'] and clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
+    data['offers']=[o for o in data['offers'] if o.get('criteria_version')==cfg['criteria_version'] and o['query']['origin'] in cfg['origins'] and clock-parse_time(o['checked_at'])<=dt.timedelta(hours=24)]
     combinations=open_jaw(data['offers'],clock)
     candidates=[o for o in data['offers'] if o['kind']=='return']+combinations
     data['open_jaw']=combinations
     data['low_prices']=[o for o in candidates if o['price_cny']<=cfg['target_cny']]
-    data['notification']={'channel':'report_only','delivered':False,'note':'尚未配置主动通知；不会向 ChatGPT 发消息'}
+    data['notification']={'channel':'github_issue','delivery_receipts':'notifications.json','note':'GitHub Issue创建记录见notifications.json；不代表邮件或手机已送达'}
     data['updated_at']=clock.isoformat()
     data['status']=state.get('status','unknown')
     data['quota']=state.get('quota',{})
@@ -173,10 +187,11 @@ def save_report(state,data,cfg):
     write('docs/search-history.json',data['history'])
     lines=['# Italy Flight Radar','',f"更新：{data['updated_at']}",f"状态：{data['status']}",'',
            '仅显示 API.SH / Kiwi 实际返回的报价；24小时后不再当作当前报价。',
-           '低价记录不等于已发送通知。开口程为分开购票估算，不含意大利境内交通。','',
+           '上海出发：2月1日18:00后或2月2日00:00–02:00；回程当地起飞2月10/11日；每方向≤20小时、≤1次中转。',
+           '提醒见GitHub Issues。开口程为分开购票估算，不含意大利境内交通。','',
            '|类型|路线|人民币|查询时间|','|---|---|---:|---|']
     for o in sorted(candidates,key=lambda x:x['price_cny'])[:30]:
-        route=' / '.join(x['from']+'→'+x['to']+' '+x['departure'][:10] for x in o['legs'])
+        route=' / '.join(x['from']+'→'+x['to']+' '+x['departure'][:16] for x in o['legs'])
         lines.append(f"|{o['kind']}|{route}|{o['price_cny']:.2f}|{o['checked_at']}|")
     if not candidates:lines.append('\n尚无符合条件的往返报价；这不表示市场没有航班。')
     lines.extend(['','详细航段、行李、订票链接及报价历史见 [data.json](data.json)。'])
@@ -202,7 +217,7 @@ def main():
         print('Daily limit reached');return
     # Prevent re-runs and repeated push events from spending again in the same 2h window.
     if state.get('last_run') and clock-parse_time(state['last_run'])<dt.timedelta(hours=2):
-        state['status']='ok (recent run; no repeat API calls)'
+        state['status']=state.get('status','unknown')+' (recent run; no repeat API calls)'
         save_report(state,data,cfg);persist()
         print('Recent run; report refreshed without API calls');return
     try:
@@ -232,7 +247,7 @@ def main():
             new=[v for o in response['itineraries'] if (v:=normalize(o,q,cfg,stamp,response))]
             data['offers']=[o for o in data['offers'] if o['query']!=q]+new
             data['history'].append({'checked_at':stamp,'query':q,'offer_count':len(new),
-                                    'minimum_cny':min([o['price_cny'] for o in new],default=None),
+                                    'criteria_version':cfg['criteria_version'],'minimum_cny':min([o['price_cny'] for o in new],default=None),
                                     'fetched_at':response.get('fetched_at'),'cached':response.get('cached')})
             data['history']=data['history'][-5000:]
         state.update(status='ok',failure_streak=0,pending=False)

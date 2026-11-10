@@ -8,9 +8,11 @@ on:
       - 'radar.py'
       - 'config.json'
       - 'test_radar.py'
+      - 'notify.py'
       - '.github/workflows/flight-radar.yml'
 permissions:
   contents: write
+  issues: write
 concurrency:
   group: italy-flight-radar
   cancel-in-progress: false
@@ -36,3 +38,8 @@ jobs:
         env:
           APISH_API_KEY: ${{ secrets.APISH_API_KEY }}
         run: python radar.py
+      - name: Send and verify GitHub Issue alerts
+        if: ${{ always() && !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python notify.py
