@@ -158,7 +158,7 @@
       "cached": false
     }
   ],
-  "status": "API HTTP 503",
+  "status": "reserved",
   "notification": {
     "channel": "github_issue",
     "delivery_receipts": "notifications.json",
@@ -166,10 +166,10 @@
   },
   "open_jaw": [],
   "low_prices": [],
-  "updated_at": "2026-11-10T01:41:37.605856+00:00",
+  "updated_at": "2026-11-10T04:40:31.128657+00:00",
   "quota": {
-    "free": 988,
+    "free": 986,
     "free_resets_at": "2026-12-09T02:51:58.972Z",
-    "utc_month_spend": 12
+    "utc_month_spend": 14
   }
 }
