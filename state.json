@@ -1,19 +1,19 @@
 {
   "version": 3,
   "cursor": 1,
-  "pending": false,
+  "pending": true,
   "failure_streak": 0,
   "day": "2026-11-13",
-  "day_reserved": 6,
+  "day_reserved": 12,
   "free_cycle": "2026-12-09T02:51:58.972Z",
-  "cycle_reserved": 85,
+  "cycle_reserved": 91,
   "utc_month": "2026-11",
-  "month_reserved": 85,
-  "last_run": "2026-11-13T00:40:44.371248+00:00",
+  "month_reserved": 91,
+  "last_run": "2026-11-13T04:46:53.475174+00:00",
   "quota": {
-    "free": 916,
+    "free": 914,
     "free_resets_at": "2026-12-09T02:51:58.972Z",
-    "utc_month_spend": 84
+    "utc_month_spend": 86
   },
-  "status": "ok"
+  "status": "reserved"
 }
