@@ -14795,7 +14795,7 @@
       "cached": false
     }
   ],
-  "status": "ok",
+  "status": "reserved",
   "notification": {
     "channel": "github_issue",
     "delivery_receipts": "notifications.json",
@@ -19423,10 +19423,10 @@
     }
   ],
   "low_prices": [],
-  "updated_at": "2026-11-16T05:21:44.504657+00:00",
+  "updated_at": "2026-11-16T11:07:16.294584+00:00",
   "quota": {
-    "free": 838,
+    "free": 836,
     "free_resets_at": "2026-12-09T02:51:58.972Z",
-    "utc_month_spend": 162
+    "utc_month_spend": 164
   }
 }
