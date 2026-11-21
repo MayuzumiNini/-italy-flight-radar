@@ -3742,5 +3742,83 @@
     "minimum_cny": 6077,
     "fetched_at": "2026-11-21T10:38:08.893Z",
     "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:44.096617+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "ROM",
+      "kind": "outbound"
+    },
+    "offer_count": 15,
+    "criteria_version": 4,
+    "minimum_cny": 4090,
+    "fetched_at": "2026-11-21T15:34:43.964Z",
+    "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:46.605556+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "ROM",
+      "kind": "inbound"
+    },
+    "offer_count": 26,
+    "criteria_version": 4,
+    "minimum_cny": 3212,
+    "fetched_at": "2026-11-21T15:34:46.492Z",
+    "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:50.155702+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "MIL",
+      "kind": "return"
+    },
+    "offer_count": 0,
+    "criteria_version": 4,
+    "minimum_cny": null,
+    "fetched_at": "2026-11-21T15:34:50.056Z",
+    "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:53.094338+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "MIL",
+      "kind": "outbound"
+    },
+    "offer_count": 10,
+    "criteria_version": 4,
+    "minimum_cny": 4642,
+    "fetched_at": "2026-11-21T15:34:53.012Z",
+    "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:56.506517+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "MIL",
+      "kind": "inbound"
+    },
+    "offer_count": 25,
+    "criteria_version": 4,
+    "minimum_cny": 3998,
+    "fetched_at": "2026-11-21T15:34:56.410Z",
+    "cached": false
+  },
+  {
+    "checked_at": "2026-11-21T15:34:58.832165+00:00",
+    "query": {
+      "origin": "SHA",
+      "city": "ROM",
+      "kind": "return"
+    },
+    "offer_count": 12,
+    "criteria_version": 4,
+    "minimum_cny": 6077,
+    "fetched_at": "2026-11-21T15:34:58.737Z",
+    "cached": false
   }
 ]
