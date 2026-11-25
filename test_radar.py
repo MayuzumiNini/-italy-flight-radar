@@ -26,7 +26,17 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual({q['kind'] for q in qs},{'return','outbound','inbound'})
     def test_actual_date_window_parameters(self):
         p=radar.params({'origin':'SHA','city':'ROM','kind':'return'},self.cfg)
-        self.assertEqual(p['date'],'2027-02-01');self.assertEqual(p['return_date_end'],'2027-02-11')
+        self.assertEqual(p['date'],'2027-02-02')
+        self.assertNotIn('date_end',p)
+        self.assertEqual((p['return_date'],p['return_date_end']),('2027-02-10','2027-02-11'))
+        for kind in ('outbound','inbound'):
+            one_way=radar.params({'origin':'SHA','city':'MIL','kind':kind},self.cfg)
+            if kind=='outbound':
+                self.assertEqual(one_way['date'],'2027-02-02')
+                self.assertNotIn('date_end',one_way)
+            else:
+                self.assertEqual((one_way['date'],one_way['date_end']),('2027-02-10','2027-02-11'))
+            self.assertNotIn('return_date',one_way)
         self.assertEqual(p['fresh'],1);self.assertEqual(p['max_stops'],1)
     def test_reject_bad_currency_stops_dates_and_nonfinite_prices(self):
         q={'origin':'SHA','city':'ROM','kind':'outbound'}
@@ -69,10 +79,24 @@ class NewFilterTests(unittest.TestCase):
                        'arrival':'2027-02-02T12:00:00','stops':1,'duration_seconds':duration,'legs':[{},{}]}}
         return radar.normalize(o,q,cfg,'2026-12-01T00:00:00Z',{})
     def test_outbound_time_boundaries(self):
-        for t in ['2027-02-01T18:00:00','2027-02-01T23:59:00','2027-02-02T00:00:00','2027-02-02T01:59:00','2027-02-02T02:00:00']:
+        for t in ['2027-02-02T00:00:00','2027-02-02T02:00:01','2027-02-02T12:00:00','2027-02-02T23:59:59']:
             self.assertIsNotNone(self.check_offer(t),t)
-        for t in ['2027-02-01T17:59:59','2027-02-02T02:00:01','2027-02-03T01:00:00']:
+        for t in ['2027-02-01T18:00:00','2027-02-01T23:59:59','2027-02-03T00:00:00']:
             self.assertIsNone(self.check_offer(t),t)
+    def test_return_local_departure_dates(self):
+        cfg=radar.read('config.json')
+        for kind in ('return','inbound'):
+            q={'origin':'SHA','city':'ROM','kind':kind}
+            outbound={'from':{'code':'PVG'},'to':{'code':'FCO'},'departure':'2027-02-02T16:00:00',
+                      'arrival':'2027-02-02T22:00:00','stops':0,'duration_seconds':46800,'legs':[{}]}
+            for day,ok in [('09',False),('10',True),('11',True),('12',False)]:
+                with self.subTest(kind=kind,day=day):
+                    inbound={'from':{'code':'FCO'},'to':{'code':'PVG'},'departure':f'2027-02-{day}T23:30:00',
+                             'arrival':'2027-02-12T17:00:00','stops':0,'duration_seconds':43200,'legs':[{}]}
+                    o={'price':2000,'currency':'CNY','hidden_city':False,'throwaway_ticket':False,
+                       'outbound':outbound if kind=='return' else inbound,'inbound':inbound}
+                    self.assertEqual(radar.normalize(o,q,cfg,'2026-12-01T00:00:00Z',{}) is not None,ok)
+
     def test_duration_and_shanghai_required(self):
         for duration in [72001,None,float('nan'),0]:
             self.assertIsNone(self.check_offer('2027-02-02T01:00:00',duration))
@@ -80,11 +104,11 @@ class NewFilterTests(unittest.TestCase):
     def test_alerts_reject_old_criteria_and_failed_runs(self):
         import notify
         clock=dt.datetime(2026,12,1,tzinfo=radar.UTC);cfg=radar.read('config.json')
-        offer={'kind':'return','price_cny':4500,'criteria_version':4,'checked_at':clock.isoformat()}
+        offer={'kind':'return','price_cny':4500,'criteria_version':cfg['criteria_version'],'checked_at':clock.isoformat()}
         data={'status':'ok','updated_at':clock.isoformat(),'low_prices':[offer]}
         self.assertEqual(len(notify.eligible(data,cfg,clock)),1)
-        offer['criteria_version']=3;self.assertEqual(notify.eligible(data,cfg,clock),[])
-        offer['criteria_version']=4;data['status']='API HTTP 503';self.assertEqual(notify.eligible(data,cfg,clock),[])
+        offer['criteria_version']=cfg['criteria_version']-1;self.assertEqual(notify.eligible(data,cfg,clock),[])
+        offer['criteria_version']=cfg['criteria_version'];data['status']='API HTTP 503';self.assertEqual(notify.eligible(data,cfg,clock),[])
     def test_issue_recovery_does_not_duplicate(self):
         import notify
         with patch('notify.github') as api:

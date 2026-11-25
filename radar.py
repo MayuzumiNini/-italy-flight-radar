@@ -102,8 +102,10 @@ def queries(cfg):
 
 def params(q,cfg):
     p={'from':q['origin'], 'to':q['city'], 'date':cfg['departure_start'],
-       'date_end':cfg['departure_end'], 'currency':'CNY','adults':1,'cabin':'economy',
+       'currency':'CNY','adults':1,'cabin':'economy',
        'max_stops':1,'max_duration':cfg['max_duration_hours'],'sort':'price','size':50,'page':1,'raw':0,'fresh':1}
+    if q['kind']!='inbound' and cfg['departure_end']!=cfg['departure_start']:
+        p['date_end']=cfg['departure_end']
     if q['kind']=='return':
         p.update(return_date=cfg['return_start'],return_date_end=cfg['return_end'])
     elif q['kind']=='inbound':
@@ -123,16 +125,11 @@ def normalize(o,q,cfg,stamp,meta):
         for n,d in enumerate(directions):
             if type(d['stops']) is not int or not 0<=d['stops']<=1 or not d['legs']:
                 return None
-            day=d['departure'][:10]
+            # The provider supplies departure in the airport's local time.
+            day=dt.datetime.fromisoformat(d['departure']).date().isoformat()
             inbound=q['kind']=='inbound' or n==1
             lo,hi=(cfg['return_start'],cfg['return_end']) if inbound else (cfg['departure_start'],cfg['departure_end'])
             if not lo<=day<=hi: return None
-            departure=dt.datetime.fromisoformat(d['departure'])
-            if not inbound:
-                t=departure.time()
-                if not ((day=='2027-02-01' and t>=dt.time(18)) or
-                        (day=='2027-02-02' and t<=dt.time(2))):
-                    return None
             duration=d.get('duration_seconds')
             if type(duration) not in (int,float) or not math.isfinite(duration) or not 0<duration<=cfg['max_duration_hours']*3600:
                 return None
@@ -187,7 +184,7 @@ def save_report(state,data,cfg):
     write('docs/search-history.json',data['history'])
     lines=['# Italy Flight Radar','',f"更新：{data['updated_at']}",f"状态：{data['status']}",'',
            '仅显示 API.SH / Kiwi 实际返回的报价；24小时后不再当作当前报价。',
-           '上海出发：2月1日18:00后或2月2日00:00–02:00；回程当地起飞2月10/11日；每方向≤20小时、≤1次中转。',
+           '上海当地2月2日全天出发；回程限意大利当地2月10日或11日起飞；每方向≤20小时、≤1次中转。',
            '提醒见GitHub Issues。开口程为分开购票估算，不含意大利境内交通。','',
            '|类型|路线|人民币|查询时间|','|---|---|---:|---|']
     for o in sorted(candidates,key=lambda x:x['price_cny'])[:30]:
